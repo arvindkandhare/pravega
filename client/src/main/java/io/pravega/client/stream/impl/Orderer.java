@@ -45,6 +45,8 @@ public class Orderer {
                 inputStream.fillBuffer();
             }
         }
+        //TBD: Should block on a semaphore for any of the above streams to be available rather than blocking on the
+        // next one.
         return segments.get(counter.incrementAndGet() % segments.size());
     }
 }

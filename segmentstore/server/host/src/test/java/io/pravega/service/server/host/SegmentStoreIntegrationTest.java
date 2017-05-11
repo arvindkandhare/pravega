@@ -89,7 +89,7 @@ public class SegmentStoreIntegrationTest extends StreamSegmentStoreTestBase {
 
         // HDFS
         this.baseDir = Files.createTempDirectory("test_hdfs").toFile().getAbsoluteFile();
-        this.hdfsCluster = HDFSClusterHelpers.createMiniDFSCluster(this.baseDir.getAbsolutePath());
+        this.hdfsCluster = HDFSClusterHelpers.createMiniDFSCluster(this.baseDir.getAbsolutePath(), false);
 
         this.configBuilder.include(HDFSStorageConfig
                 .builder()

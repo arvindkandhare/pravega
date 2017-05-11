@@ -9,8 +9,6 @@
  */
 package io.pravega.service.storage.impl.hdfs;
 
-import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.LoggerContext;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.service.storage.SegmentHandle;
 import io.pravega.service.storage.Storage;
@@ -39,7 +37,8 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import org.slf4j.LoggerFactory;
+
+import static io.pravega.test.common.AssertExtensions.assertThrows;
 
 /**
  * Unit tests for HDFSStorage.
@@ -51,11 +50,11 @@ public class HDFSStorageTest extends StorageTestBase {
 
     @Before
     public void setUp() throws Exception {
-        LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
-        context.getLoggerList().get(0).setLevel(Level.OFF);
+  //      LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
+  //      context.getLoggerList().get(0).setLevel(Level.OFF);
 
         this.baseDir = Files.createTempDirectory("test_hdfs").toFile().getAbsoluteFile();
-        this.hdfsCluster = HDFSClusterHelpers.createMiniDFSCluster(this.baseDir.getAbsolutePath());
+        this.hdfsCluster = HDFSClusterHelpers.createMiniDFSCluster(this.baseDir.getAbsolutePath(), true);
         this.adapterConfig = HDFSStorageConfig
                 .builder()
                 .with(HDFSStorageConfig.REPLICATION, 1)
@@ -63,6 +62,46 @@ public class HDFSStorageTest extends StorageTestBase {
                 .build();
     }
 
+
+    //Region HDFS Availability
+    /**
+     * Tests the write() method.
+     *
+     * @throws Exception if an unexpected error occurred.
+     */
+    @Test
+    public void testWriteDuringRestart() throws Exception {
+        String segmentName = "foo_write";
+        int appendCount = 5;
+
+        try (Storage s = createStorage()) {
+            s.initialize(DEFAULT_EPOCH);
+            s.create(segmentName, TIMEOUT).join();
+
+            val writeHandle = s.openWrite(segmentName).join();
+            long offset = 0;
+            for (int j = 0; j < appendCount; j++) {
+                byte[] writeData = String.format("Segment_%s_Append_%d", segmentName, j).getBytes();
+                ByteArrayInputStream dataStream = new ByteArrayInputStream(writeData);
+                s.write(writeHandle, offset, dataStream, writeData.length, TIMEOUT).join();
+                restartHDFS();
+                offset += writeData.length;
+            }
+        }
+    }
+
+    private void restartHDFS() throws IOException, InterruptedException {
+        (hdfsCluster.getDataNodes()).get(0).shutdown();
+        (hdfsCluster.getDataNodes()).get(0).runDatanodeDaemon();
+/*        hdfsCluster.shutdown();
+        this.hdfsCluster = HDFSClusterHelpers.createMiniDFSCluster(this.baseDir.getAbsolutePath(),false);
+        while(!this.hdfsCluster.isClusterUp()) {
+            Thread.sleep(5000);
+        }
+  */
+    }
+
+    //endregion
     @After
     public void tearDown() {
         if (hdfsCluster != null) {

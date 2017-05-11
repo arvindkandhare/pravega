@@ -287,7 +287,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.segmentMapper
                 .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
-                .thenApply(streamSegmentId -> this.readIndex.read(streamSegmentId, offset, maxLength, timer.getRemaining()));
+                .thenCompose(streamSegmentId -> { return this.readIndex.read(streamSegmentId, offset, maxLength, timer
+                        .getRemaining());});
     }
 
     @Override

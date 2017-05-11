@@ -632,7 +632,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      * @throws IllegalArgumentException If the parameters are invalid.
      * @throws IllegalArgumentException If the StreamSegment is sealed and startOffset is beyond its length.
      */
-    ReadResult read(long startOffset, int maxLength, Duration timeout) {
+    CompletableFuture<ReadResult> read(long startOffset, int maxLength, Duration timeout) {
         Exceptions.checkNotClosed(this.closed, this);
         Preconditions.checkState(!this.recoveryMode, "StreamSegmentReadIndex is in Recovery Mode.");
         Exceptions.checkArgument(startOffset >= 0, "startOffset", "startOffset must be a non-negative number.");

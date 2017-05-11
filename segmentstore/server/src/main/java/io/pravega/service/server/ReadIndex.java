@@ -15,6 +15,7 @@ import java.io.InputStream;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Defines a ReadIndex for StreamSegments, that allows adding data only at the end.
@@ -95,7 +96,7 @@ public interface ReadIndex extends AutoCloseable {
      * @param timeout         Timeout for the operation.
      * @return A ReadResult containing the data to be read.
      */
-    ReadResult read(long streamSegmentId, long offset, int maxLength, Duration timeout);
+    CompletableFuture<ReadResult> read(long streamSegmentId, long offset, int maxLength, Duration timeout);
 
     /**
      * Triggers all eligible pending Future Reads for the given StreamSegmentIds.

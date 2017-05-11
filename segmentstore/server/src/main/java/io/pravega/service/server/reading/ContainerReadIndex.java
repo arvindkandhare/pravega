@@ -28,6 +28,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
@@ -156,7 +157,7 @@ public class ContainerReadIndex implements ReadIndex {
     }
 
     @Override
-    public ReadResult read(long streamSegmentId, long offset, int maxLength, Duration timeout) {
+    public CompletableFuture<ReadResult> read(long streamSegmentId, long offset, int maxLength, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         log.debug("{}: read (StreamSegmentId = {}, Offset = {}, MaxLength = {}).", this.traceObjectId, streamSegmentId, offset, maxLength);
 

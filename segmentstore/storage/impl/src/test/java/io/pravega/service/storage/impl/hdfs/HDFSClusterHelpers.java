@@ -21,14 +21,15 @@ public final class HDFSClusterHelpers {
      * Creates a MiniDFSCluster at the given Path.
      *
      * @param path The path to create at.
+     * @param b
      * @return A MiniDFSCluster.
      * @throws IOException If an Exception occurred.
      */
-    public static MiniDFSCluster createMiniDFSCluster(String path) throws IOException {
+    public static MiniDFSCluster createMiniDFSCluster(String path, boolean format) throws IOException {
         Configuration conf = new Configuration();
         conf.set(MiniDFSCluster.HDFS_MINIDFS_BASEDIR, path);
         conf.setBoolean("dfs.permissions.enabled", true);
-        MiniDFSCluster.Builder builder = new MiniDFSCluster.Builder(conf);
+        MiniDFSCluster.Builder builder = new MiniDFSCluster.Builder(conf).format(format);
         return builder.build();
     }
 }

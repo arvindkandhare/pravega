@@ -15,6 +15,7 @@ import io.pravega.common.util.CircularBuffer;
 import com.google.common.base.Preconditions;
 
 import java.nio.ByteBuffer;
+import java.util.concurrent.CompletableFuture;
 
 import javax.annotation.concurrent.GuardedBy;
 
@@ -47,6 +48,8 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     private boolean receivedEndOfSegment = false;
     @GuardedBy("$lock")
     private AsyncSegmentInputStream.ReadFuture outstandingRequest = null;
+    @GuardedBy("$lock")
+    private CompletableFuture<Integer> bufferFullFuture;
 
     SegmentInputStreamImpl(AsyncSegmentInputStream asyncInput, long offset) {
         this(asyncInput, offset, DEFAULT_BUFFER_SIZE);
@@ -150,9 +153,11 @@ class SegmentInputStreamImpl implements SegmentInputStream {
         WireCommands.SegmentRead segmentRead = asyncInput.getResult(outstandingRequest);
         if (segmentRead.getData().hasRemaining()) {
             buffer.fill(segmentRead.getData());
+            this.bufferFullFuture.complete(Integer.valueOf(this.getSegmentId().getSegmentNumber()));
         }
         if (segmentRead.isEndOfSegment()) {
             receivedEndOfSegment = true;
+            this.bufferFullFuture.complete(Integer.valueOf(this.getSegmentId().getSegmentNumber()));
         }
         if (!segmentRead.getData().hasRemaining()) {
             outstandingRequest = null;
@@ -184,12 +189,14 @@ class SegmentInputStreamImpl implements SegmentInputStream {
 
     @Override
     @Synchronized
-    public void fillBuffer() {
+    public CompletableFuture<Integer> fillBuffer() {
         log.trace("Filling buffer {}", this);
+        this.bufferFullFuture = new CompletableFuture<Integer>();
         issueRequestIfNeeded();
         while (dataWaitingToGoInBuffer()) {
             handleRequest();
         }
+        return this.bufferFullFuture;
     }
     
     @Override

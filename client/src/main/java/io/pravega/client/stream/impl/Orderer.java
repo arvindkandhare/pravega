@@ -11,6 +11,7 @@ package io.pravega.client.stream.impl;
 
 import io.pravega.client.segment.impl.SegmentInputStream;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -31,14 +32,16 @@ public class Orderer {
         if (segments.isEmpty()) {
             return null;
         }
+        CompletableFuture<Integer>[] featuresToWaitFor = new CompletableFuture[segments.size()];
         for (int i = 0; i < segments.size(); i++) {
             SegmentInputStream inputStream = segments.get(counter.incrementAndGet() % segments.size());
             if (inputStream.canReadWithoutBlocking()) {
                 return inputStream;
             } else {
-                inputStream.fillBuffer();
+                featuresToWaitFor[i] = inputStream.fillBuffer();
             }
         }
+        CompletableFuture.anyOf(featuresToWaitFor);
         //TBD: Should block on a semaphore for any of the above streams to be available rather than blocking on the
         // next one.
         return segments.get(counter.incrementAndGet() % segments.size());

@@ -147,7 +147,12 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
             FutureHelpers.await(result.get(), timeout);
             return result.get().isDone();
         }
-        
+
+        @Override
+        public CompletableFuture<WireCommands.SegmentRead> getFuture() {
+            return result.get();
+        }
+
         public boolean await() {
             return FutureHelpers.await(result.get());
         }

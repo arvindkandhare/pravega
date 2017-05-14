@@ -119,7 +119,7 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     }
 
     @Override
-    public CompletableFuture<Integer> fillBuffer() {
+    public CompletableFuture<WireCommands.SegmentRead> fillBuffer() {
         //Noting to do.
         return null;
     }

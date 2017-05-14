@@ -63,6 +63,11 @@ public class SegmentInputStreamTest {
                 FutureHelpers.await(readResults.get(num + attempt), timeout);
                 return readResults.get(num + attempt).isDone();
             }
+
+            @Override
+            public CompletableFuture<WireCommands.SegmentRead> getFuture() {
+                return null;
+            }
         }
 
         @Override

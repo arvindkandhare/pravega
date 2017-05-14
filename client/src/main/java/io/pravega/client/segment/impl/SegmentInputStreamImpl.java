@@ -189,14 +189,14 @@ class SegmentInputStreamImpl implements SegmentInputStream {
 
     @Override
     @Synchronized
-    public CompletableFuture<Integer> fillBuffer() {
+    public CompletableFuture<WireCommands.SegmentRead> fillBuffer() {
         log.trace("Filling buffer {}", this);
         this.bufferFullFuture = new CompletableFuture<Integer>();
         issueRequestIfNeeded();
         while (dataWaitingToGoInBuffer()) {
             handleRequest();
         }
-        return this.bufferFullFuture;
+        return this.outstandingRequest == null ? null : this.outstandingRequest.getFuture();
     }
     
     @Override

@@ -39,6 +39,12 @@ abstract class AsyncSegmentInputStream implements AutoCloseable {
          * @param timeout The maximum number of milliseconds to block
          */
         boolean await(long timeout);
+
+        /**
+         * Returns the underlying Completable future so that caller thread can depend on completion notifications
+         * @return
+         */
+        CompletableFuture<SegmentRead> getFuture();
     }
     
     /**

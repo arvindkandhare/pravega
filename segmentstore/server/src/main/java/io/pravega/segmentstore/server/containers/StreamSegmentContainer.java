@@ -163,6 +163,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     //    this.durableLog.startAsync();
         ExecutorServiceHelpers.execute(() -> {
       //      this.durableLog.awaitRunning();
+            this.metadata.setContainerEpoch(1);
             this.storage.initialize(this.metadata.getContainerEpoch());
 
             // DurableLog is running. Now start all other components that depend on it.
@@ -336,9 +337,15 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         logRequest("createStreamSegment", streamSegmentName);
         ReadIndex readIndex = readIndexFactory.createReadIndex(this.metadata, this.storage);
         OperationLog durableLog = durableLogFactory.createDurableLog(this.metadata, readIndex);
-        StreamSegment segment = new StreamSegment(durableLog, readIndex);
-        this.segmentMap.putIfAbsent(streamSegmentName, segment);
-       // return this.segmentMapper.createNewStreamSegment(streamSegmentName, attributes, timeout);
+        synchronized (this) {
+            if( !this.segmentMap.containsKey(streamSegmentName)) {
+                StreamSegment segment = new StreamSegment(durableLog, readIndex);
+                this.segmentMap.putIfAbsent(streamSegmentName, segment);
+                return segment.create();
+            } else {
+                return CompletableFuture.completedFuture(null);
+            }
+        }
     }
 
     @Override

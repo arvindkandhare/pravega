@@ -16,4 +16,8 @@ public class StreamSegment extends CompletableFuture<Void> {
         this.durableLog = durableLog;
         this.readIndex = readIndex;
     }
+
+    public CompletableFuture<Void> create() {
+        return null;
+    }
 }

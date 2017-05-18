@@ -45,6 +45,7 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -57,6 +58,8 @@ import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
+import javax.annotation.concurrent.GuardedBy;
+
 /**
  * Container for StreamSegments. All StreamSegments that are related (based on a hashing functions) will belong to the
  * same StreamSegmentContainer. Handles all operations that can be performed on such streams.
@@ -67,15 +70,20 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private final String traceObjectId;
     private final ContainerConfig config;
     private final StreamSegmentContainerMetadata metadata;
-    private final OperationLog durableLog;
-    private final ReadIndex readIndex;
-    private final Writer writer;
+    //private final OperationLog durableLog;
+    //private final ReadIndex readIndex;
+    //private final Writer writer;
     private final Storage storage;
     private final AsyncMap<String, SegmentState> stateStore;
-    private final StreamSegmentMapper segmentMapper;
+    //private final StreamSegmentMapper segmentMapper;
     private final ScheduledExecutorService executor;
     private final MetadataCleaner metadataCleaner;
     private final AtomicBoolean closed;
+    private final OperationLogFactory durableLogFactory;
+    private final ReadIndexFactory readIndexFactory;
+
+    @GuardedBy("lock")
+    private final HashMap<String, StreamSegment> segmentMap;
 
     //endregion
 
@@ -105,19 +113,24 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         this.config = config;
         this.storage = storageFactory.createStorageAdapter();
         this.metadata = new StreamSegmentContainerMetadata(streamSegmentContainerId, config.getMaxActiveSegmentCount());
-        this.readIndex = readIndexFactory.createReadIndex(this.metadata, this.storage);
+        this.durableLogFactory = durableLogFactory;
+        this.readIndexFactory = readIndexFactory;
+        //this.readIndex = readIndexFactory.createReadIndex(this.metadata, this.storage);
         this.executor = executor;
-        this.durableLog = durableLogFactory.createDurableLog(this.metadata, this.readIndex);
-        shutdownWhenStopped(this.durableLog, "DurableLog");
-        this.writer = writerFactory.createWriter(this.metadata, this.durableLog, this.readIndex, this.storage);
-        shutdownWhenStopped(this.writer, "Writer");
+        //this.durableLog = durableLogFactory.createDurableLog(this.metadata, this.readIndex);
+        //shutdownWhenStopped(this.durableLog, "DurableLog");
+        //this.writer = writerFactory.createWriter(this.metadata, this.durableLog, this.readIndex, this.storage);
+        //shutdownWhenStopped(this.writer, "Writer");
         this.stateStore = new SegmentStateStore(this.storage, this.executor);
         this.metadataCleaner = new MetadataCleaner(this.config, this.metadata, this.stateStore, this::notifyMetadataRemoved,
                 this.executor, this.traceObjectId);
         shutdownWhenStopped(this.metadataCleaner, "MetadataCleaner");
-        this.segmentMapper = new StreamSegmentMapper(this.metadata, this.durableLog, this.stateStore, this.metadataCleaner::runOnce,
+       /* this.segmentMapper = new StreamSegmentMapper(this.metadata, this.durableLog, this.stateStore, this
+                .metadataCleaner::runOnce,
                 this.storage, this.executor);
+                */
         this.closed = new AtomicBoolean();
+        segmentMap = new HashMap<>();
     }
 
     //endregion
@@ -131,9 +144,9 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             ServiceShutdownListener.awaitShutdown(this, false);
 
             this.metadataCleaner.close();
-            this.writer.close();
+            /*this.writer.close();
             this.durableLog.close();
-            this.readIndex.close();
+            this.readIndex.close();*/
             log.info("{}: Closed.", this.traceObjectId);
         }
     }
@@ -147,15 +160,15 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         long traceId = LoggerHelpers.traceEnterWithContext(log, traceObjectId, "doStart");
         log.info("{}: Starting.", this.traceObjectId);
 
-        this.durableLog.startAsync();
+    //    this.durableLog.startAsync();
         ExecutorServiceHelpers.execute(() -> {
-            this.durableLog.awaitRunning();
+      //      this.durableLog.awaitRunning();
             this.storage.initialize(this.metadata.getContainerEpoch());
 
             // DurableLog is running. Now start all other components that depend on it.
             this.metadataCleaner.startAsync();
-            this.writer.startAsync();
-            this.writer.awaitRunning();
+        //    this.writer.startAsync();
+         //   this.writer.awaitRunning();
             this.metadataCleaner.awaitRunning();
             log.info("{}: Started.", this.traceObjectId);
             LoggerHelpers.traceLeave(log, traceObjectId, "doStart", traceId);
@@ -181,11 +194,11 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         long traceId = LoggerHelpers.traceEnterWithContext(log, traceObjectId, "doStop");
         log.info("{}: Stopping.", this.traceObjectId);
         this.metadataCleaner.stopAsync();
-        this.writer.stopAsync();
-        this.durableLog.stopAsync();
+      /*  this.writer.stopAsync();
+        this.durableLog.stopAsync();*/
         ExecutorServiceHelpers.execute(() -> {
             ServiceShutdownListener.awaitShutdown(this.metadataCleaner, false);
-            ServiceShutdownListener.awaitShutdown(this.writer, false);
+           /* ServiceShutdownListener.awaitShutdown(this.writer, false);
             ServiceShutdownListener.awaitShutdown(this.durableLog, false);
             Throwable failureCause = getFailureCause(this.durableLog, this.writer, this.metadataCleaner);
             if (failureCause == null) {
@@ -204,10 +217,10 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 log.warn("{}: Failed due to component failure.", this.traceObjectId);
                 LoggerHelpers.traceLeave(log, traceObjectId, "doStop", traceId);
                 notifyFailed(failureCause);
-            }
+            }*/
         }, this::notifyFailed, Runnables.doNothing(), this.executor);
     }
-
+/*
     private Throwable getFailureCause(Service... services) {
         Throwable result = null;
         for (Service s : services) {
@@ -223,7 +236,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         return result;
     }
-
+*/
     //endregion
 
     //region Container Implementation
@@ -243,12 +256,13 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
         logRequest("append", streamSegmentName, data.length);
-        return FutureHelpers.toVoid(this.segmentMapper
+        return null;
+                /*FutureHelpers.toVoid(this.segmentMapper
                 .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
                 .thenCompose(streamSegmentId -> {
                     StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(streamSegmentId, data, attributeUpdates);
                     return this.durableLog.add(operation, timer.getRemaining());
-                }));
+                }));*/
     }
 
     @Override
@@ -257,12 +271,13 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
         logRequest("appendWithOffset", streamSegmentName, data.length);
-        return FutureHelpers.toVoid(this.segmentMapper
+        return null;
+        /*FutureHelpers.toVoid(this.segmentMapper
                 .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
                 .thenCompose(streamSegmentId -> {
                     StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(streamSegmentId, offset, data, attributeUpdates);
                     return this.durableLog.add(operation, timer.getRemaining());
-                }));
+                }));*/
     }
 
     @Override
@@ -271,12 +286,12 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
         logRequest("updateAttributes", streamSegmentName, attributeUpdates);
-        return FutureHelpers.toVoid(this.segmentMapper
+        return null;/*FutureHelpers.toVoid(this.segmentMapper
                 .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
                 .thenCompose(streamSegmentId -> {
                     UpdateAttributesOperation operation = new UpdateAttributesOperation(streamSegmentId, attributeUpdates);
                     return this.durableLog.add(operation, timer.getRemaining());
-                }));
+                }));*/
     }
 
     @Override
@@ -285,9 +300,10 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         logRequest("read", streamSegmentName, offset, maxLength);
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.segmentMapper
+        return null;/*this.segmentMapper
                 .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
-                .thenApply(streamSegmentId -> this.readIndex.read(streamSegmentId, offset, maxLength, timer.getRemaining()));
+                .thenApply(streamSegmentId -> this.readIndex.read(streamSegmentId, offset, maxLength, timer
+                .getRemaining()));*/
     }
 
     @Override
@@ -296,7 +312,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         logRequest("getStreamSegmentInfo", streamSegmentName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
-
+/*
         CompletableFuture<Long> segmentIdRetriever;
         if (waitForPendingOps) {
             // We have been instructed to wait for all pending operations to complete. Use an op barrier and wait for it
@@ -308,7 +324,9 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             segmentIdRetriever = this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining());
         }
 
-        return segmentIdRetriever.thenApply(streamSegmentId -> this.metadata.getStreamSegmentMetadata(streamSegmentId).getSnapshot());
+        return segmentIdRetriever.thenApply(streamSegmentId -> this.metadata.getStreamSegmentMetadata
+        (streamSegmentId).getSnapshot());*/
+        return null;
     }
 
     @Override
@@ -316,7 +334,11 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         ensureRunning();
 
         logRequest("createStreamSegment", streamSegmentName);
-        return this.segmentMapper.createNewStreamSegment(streamSegmentName, attributes, timeout);
+        ReadIndex readIndex = readIndexFactory.createReadIndex(this.metadata, this.storage);
+        OperationLog durableLog = durableLogFactory.createDurableLog(this.metadata, readIndex);
+        StreamSegment segment = new StreamSegment(durableLog, readIndex);
+        this.segmentMap.putIfAbsent(streamSegmentName, segment);
+       // return this.segmentMapper.createNewStreamSegment(streamSegmentName, attributes, timeout);
     }
 
     @Override
@@ -324,7 +346,9 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         ensureRunning();
 
         logRequest("createTransaction", parentSegmentName);
-        return this.segmentMapper.createNewTransactionStreamSegment(parentSegmentName, transactionId, attributes, timeout);
+        return null;
+       // return this.segmentMapper.createNewTransactionStreamSegment(parentSegmentName, transactionId, attributes,
+        //        timeout);
     }
 
     @Override
@@ -368,7 +392,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         logRequest("mergeTransaction", transactionName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.segmentMapper
+        return null;
+        /*return this.segmentMapper
                 .getOrAssignStreamSegmentId(transactionName, timer.getRemaining())
                 .thenCompose(transactionId -> {
                     SegmentMetadata transactionMetadata = this.metadata.getStreamSegmentMetadata(transactionId);
@@ -379,7 +404,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     Operation op = new MergeTransactionOperation(transactionMetadata.getParentId(), transactionMetadata.getId());
                     return this.durableLog.add(op, timer.getRemaining());
                 })
-                .thenComposeAsync(v -> this.stateStore.remove(transactionName, timer.getRemaining()), this.executor);
+                .thenComposeAsync(v -> this.stateStore.remove(transactionName, timer.getRemaining()), this.executor);*/
     }
 
     @Override
@@ -389,13 +414,14 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         logRequest("sealStreamSegment", streamSegmentName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
         AtomicReference<StreamSegmentSealOperation> operation = new AtomicReference<>();
-        return this.segmentMapper
+        return null;
+        /*return this.segmentMapper
                 .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
                 .thenCompose(streamSegmentId -> {
                     operation.set(new StreamSegmentSealOperation(streamSegmentId));
                     return this.durableLog.add(operation.get(), timer.getRemaining());
                 })
-                .thenApply(seqNo -> operation.get().getStreamSegmentOffset());
+                .thenApply(seqNo -> operation.get().getStreamSegmentOffset());*/
     }
 
     //endregion
@@ -429,7 +455,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
      */
     protected void notifyMetadataRemoved(Collection<SegmentMetadata> segments) {
         if (segments.size() > 0) {
-            this.readIndex.cleanup(segments.stream().map(SegmentMetadata::getId).iterator());
+            //this.readIndex.cleanup(segments.stream().map(SegmentMetadata::getId).iterator());
         }
     }
 

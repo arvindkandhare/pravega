@@ -41,6 +41,7 @@ class CreateOperation extends FileSystemOperation<String> implements Callable<Se
     @Override
     public SegmentProperties call() throws IOException, StorageNotPrimaryException {
         // Create the segment using our own epoch.
+        log.debug("Creating {} ", this.target);
         String segmentName = getTarget();
         val existingFiles = findAllRaw(segmentName);
         if (existingFiles != null && existingFiles.length > 0) {

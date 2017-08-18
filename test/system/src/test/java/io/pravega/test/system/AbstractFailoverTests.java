@@ -200,7 +200,7 @@ abstract class AbstractFailoverTests {
                     log.debug("Reading event {}", longEvent);
                     testState.countMap.compute(longEvent, (x, y) -> {
                         if (y != null) {
-                            return y++;
+                            return y+1;
                         } else {
                             return 1;
                         }
@@ -379,9 +379,7 @@ abstract class AbstractFailoverTests {
         List<Map.Entry<Integer, Integer>> result = testState.countMap.entrySet().stream().filter(integerIntegerEntry ->
             integerIntegerEntry.getValue() != 1).collect(Collectors.toList());
 
-        for(int i = 0; i < result.size(); i++) {
-            log.info("key: {}, value: {]", result.get(i).getKey(), result.get(i).getValue());
-        }
+        result.forEach( i ->   log.info("key: {}, value: {}", i.getKey(), i.getValue());
 
         log.info("All writers and readers have stopped. Event Written Count:{}, Event Read " +
                 "Count: {}", testState.eventWriteCount.get(), testState.eventReadCount.get());
